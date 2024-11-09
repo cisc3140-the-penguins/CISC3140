@@ -1,4 +1,4 @@
-const hourlyForecast = [
+let hourlyForecast = [
   { time: "10:00 PM", temp: "67°F", condition: "Clear Sky" },
   { time: "12:00 AM", temp: "66°F", condition: "Clear Sky" },
   { time: "2:00 AM", temp: "65°F", condition: "Clear Sky" },
@@ -7,7 +7,7 @@ const hourlyForecast = [
   { time: "8:00 AM", temp: "67°F", condition: "Sunny" },
 ];
 
-const weatherDetails = [
+let weatherDetails = [
   { label: "Real Feel", value: "71°" },
   { label: "Wind Speed", value: "6 mph" },
   { label: "Cloud Cover", value: "44%" },
@@ -18,7 +18,7 @@ const weatherDetails = [
   { label: "Sunset", value: "5:51 pm" },
 ];
 
-const sevenDayForecast = [
+let sevenDayForecast = [
   { day: "Today", condition: "Sunny", temp: "74/63" },
   { day: "Friday", condition: "Sunny", temp: "71/69" },
   { day: "Saturday", condition: "Sunny", temp: "68/60" },
