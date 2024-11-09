@@ -1,5 +1,5 @@
 <?php
-header('Content-Type: application/json');
+
 $config = require 'config.php';
 
 function fetchApiData($url) {
@@ -39,23 +39,15 @@ if (!isset($weatherData['error']) && $weatherData) {
 
     if ($latitude && $longitude) {
         $response['weather'] = $weatherData;
-        // $sunriseUrl = "https://api.weather.gov/points/$latitude,$longitude";
-        // $sunriseData = fetchApiData($sunriseUrl);
+        $sunriseUrl = "https://api.sunrisesunset.io/json?lat=$latitude&lng=$longitude";
+        $sunriseData = fetchApiData($sunriseUrl);
 
-        // if (!isset($sunriseData['error'])) {
-        //     $response['sunriseSunset'] = $sunriseData;
-        // } else {
-        //     $response['sunriseSunset'] = $sunriseData;
-        // }
-        $sunriseSunsetUrl = "https://api.sunrise-sunset.org/json?lat=$latitude&lng=$longitude&formatted=0";
-        $sunriseSunsetData = fetchApiData($sunriseSunsetUrl);
-
-        if (!isset($sunriseSunsetData['error'])) {
-            $response['sunriseSunset'] = $sunriseSunsetData;
+        if (!isset($sunriseData['error'])) {
+            $response['sunriseSunset'] = $sunriseData;
         } else {
-            $response['sunriseSunset'] = $sunriseSunsetData;
+            $response['sunriseSunset'] = $sunriseData;
         }
-
+        
         $weatherConditionUrl = "https://api.openweathermap.org/data/2.5/weather?lat={$latitude}&lon={$longitude}&appid=" . $config['openweather_api_key'];
         $weatherConditionData = fetchApiData($weatherConditionUrl);
 
@@ -70,4 +62,7 @@ if (!isset($weatherData['error']) && $weatherData) {
 } else {
     $response = $weatherData;
 }
+header('Content-Type: application/json');
+$file = 'weather_data.json';
+file_put_contents($file, json_encode($response, JSON_PRETTY_PRINT));
 ?>
