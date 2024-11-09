@@ -1,39 +1,7 @@
-let hourlyForecast = [
-  { time: "10:00 PM", temp: "67°F", condition: "Clear Sky" },
-  { time: "12:00 AM", temp: "66°F", condition: "Clear Sky" },
-  { time: "2:00 AM", temp: "65°F", condition: "Clear Sky" },
-  { time: "4:00 AM", temp: "65°F", condition: "Clear Sky" },
-  { time: "6:00 AM", temp: "66°F", condition: "Clear Sky" },
-  { time: "8:00 AM", temp: "67°F", condition: "Sunny" },
-];
-
-let weatherDetails = [
-  { label: "Real Feel", value: "71°" },
-  { label: "Wind Speed", value: "6 mph" },
-  { label: "Cloud Cover", value: "44%" },
-  { label: "Sunrise", value: "7:27 am" },
-  { label: "Chance", value: "0%" },
-  { label: "UV Index", value: "0" },
-  { label: "Humidity", value: "69%" },
-  { label: "Sunset", value: "5:51 pm" },
-];
-
-let sevenDayForecast = [
-  { day: "Today", condition: "Sunny", temp: "74/63" },
-  { day: "Friday", condition: "Sunny", temp: "71/69" },
-  { day: "Saturday", condition: "Sunny", temp: "68/60" },
-  { day: "Sunday", condition: "Cloudy", temp: "64/60" },
-  { day: "Monday", condition: "Cloudy", temp: "66/63" },
-  { day: "Tuesday", condition: "Rainy", temp: "61/58" },
-  { day: "Wednesday", condition: "Thunderstorm", temp: "55/52" },
-];
-
-let currentWeather = {
-  cityName: "New York City",
-  dateTime: "Thursday, October 31 2024 | 10:32 PM",
-  temperature: 72,
-  condition: "Partly Cloudy",
-};
+let hourlyForecast = [];
+let weatherDetails = [];
+let sevenDayForecast = [];
+let currentWeather = {};
 
 function renderCurrentWeather() {
   const container = document.querySelector(".current-weather");
@@ -138,8 +106,8 @@ async function fetchApiData(url) {
     return { error: `Fetch Error: ${error.message}` };
   }
 }
-
-async function getWeatherData(query) {
+// query = "New York City"
+async function getWeatherData() {
   const config = await import("./config.js");
   const weatherUrl = `https://api.tomorrow.io/v4/weather/realtime?location=${query}&apikey=${config.tomorrow_api_key}`;
   const weatherData = await fetchApiData(weatherUrl);
@@ -147,7 +115,8 @@ async function getWeatherData(query) {
   if (!weatherData.error && weatherData.data) {
     updateCurrentWeather(weatherData);
     updateWeatherDetails(weatherData.data.values);
-    // You can add more updates here for other parts of the UI
+    // You would typically update hourlyForecast and sevenDayForecast here as well
+    // but the current API response doesn't include this data
     return weatherData;
   } else {
     console.error("Error fetching weather data:", weatherData.error);
@@ -177,7 +146,6 @@ function updateCurrentWeather(weatherData) {
 }
 
 function getWeatherCondition(weatherCode) {
-  // This is a simplified mapping. You might want to expand this based on the weather codes provided by the API
   const weatherConditions = {
     1000: "Clear",
     1100: "Mostly Clear",
@@ -218,21 +186,19 @@ async function handleSearch() {
     const weatherData = await getWeatherData(query);
     if (weatherData) {
       console.log(weatherData);
-      // Here you can update other parts of the UI with the new weather data
-      // For example, you might want to update hourlyForecast and sevenDayForecast
-      // Then call the respective render functions
     }
     searchInput.value = ""; // Clear the search input after performing the search
   }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const searchInput = document.querySelector(".search-input");
   const searchButton = document.querySelector(".search-button");
 
-  renderCurrentWeather();
+  // Fetch weather data for New York City by default
+  await getWeatherData();
+
   renderHourlyForecast();
-  renderWeatherDetails();
   renderSevenDayForecast();
 
   searchButton.addEventListener("click", handleSearch);
