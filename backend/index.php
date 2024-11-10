@@ -28,7 +28,7 @@ function fetchApiData($url) {
     return $data;
 }
 
-$weatherUrl = "https://api.tomorrow.io/v4/weather/realtime?location=brooklyn&apikey=" . $config['tomorrow_api_key'];
+$weatherUrl = "https://api.tomorrow.io/v4/weather/realtime?location=Tokyo&apikey=" . $config['tomorrow_api_key'];
 $weatherData = fetchApiData($weatherUrl);
 
 $response = [];
