@@ -277,12 +277,12 @@ function renderWeatherDetails() {
           <img src="image/${getSVGFileName(detail.label)}" alt="${
         detail.label
       }" class="icon">
-          <div>
-            <div class="detail-label">${detail.label}</div>
-            <div class="detail-value">${detail.value}</div>
-          </div>
-        </div>
-      `
+                      <div>
+                        <div class="detail-value">${detail.value}</div>
+						<div class="detail-label">${detail.label}</div>
+                      </div>
+                    </div>
+                `
     )
     .join("");
 }
@@ -308,12 +308,14 @@ function renderSevenDayForecast() {
       (day) => `
         <div class="day-item">
           <div class="day">${day.day}</div>
+          <div class="condition-item">
           <img src="image/${getWeatherIcon(day.condition)}" alt="${
         day.condition
       }" class="icon">
           <div class="condition">${
             day.condition.includes("Cloudy") ? "Cloudy" : day.condition
           }</div>
+          </div>
           <div class="temp">${day.temp}</div>
         </div>
       `
