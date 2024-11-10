@@ -1,34 +1,242 @@
-let hourlyForecast = [
-  { time: "10:00 PM", temp: "67°F", condition: "Clear Sky" },
-  { time: "12:00 AM", temp: "66°F", condition: "Clear Sky" },
-  { time: "2:00 AM", temp: "65°F", condition: "Clear Sky" },
-  { time: "4:00 AM", temp: "65°F", condition: "Clear Sky" },
-  { time: "6:00 AM", temp: "66°F", condition: "Clear Sky" },
-  { time: "8:00 AM", temp: "67°F", condition: "Sunny" },
-];
-
-let weatherDetails = [
-  { label: "Real Feel", value: "71°" },
-  { label: "Wind Speed", value: "6 mph" },
-  { label: "Cloud Cover", value: "44%" },
-  { label: "Sunrise", value: "7:27 am" },
-  { label: "Chance", value: "0%" },
-  { label: "UV Index", value: "0" },
-  { label: "Humidity", value: "69%" },
-  { label: "Sunset", value: "5:51 pm" },
-];
-
-let sevenDayForecast = [
-  { day: "Today", condition: "Sunny", temp: "74/63" },
-  { day: "Friday", condition: "Sunny", temp: "71/69" },
-  { day: "Saturday", condition: "Sunny", temp: "68/60" },
-  { day: "Sunday", condition: "Cloudy", temp: "64/60" },
-  { day: "Monday", condition: "Cloudy", temp: "66/63" },
-  { day: "Tuesday", condition: "Rainy", temp: "61/58" },
-  { day: "Wednesday", condition: "Thunderstorm", temp: "55/52" },
-];
-
+let hourlyForecast = [];
+let weatherDetails = [];
+let sevenDayForecast = [];
 let currentWeather = {};
+
+async function fetchApiData(url) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    return { error: `Fetch Error: ${error.message}` };
+  }
+}
+
+async function getWeatherData(query = "New York City") {
+  const config = await import("./config.js");
+  const weatherUrl = `https://api.tomorrow.io/v4/weather/realtime?location=${query}&apikey=${config.tomorrow_api_key}`;
+  const weatherData = await fetchApiData(weatherUrl);
+
+  if (!weatherData.error && weatherData.data) {
+    const latitude = weatherData.location.lat;
+    const longitude = weatherData.location.lon;
+
+    if (latitude && longitude) {
+      const sunriseUrl = `https://api.sunrisesunset.io/json?lat=${latitude}&lng=${longitude}`;
+      const sunriseData = await fetchApiData(sunriseUrl);
+
+      const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,precipitation_probability,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&temperature_unit=fahrenheit&timezone=auto&forecast_days=7`;
+      const forecastData = await fetchApiData(forecastUrl);
+
+      updateCurrentWeather(weatherData, query, forecastData, sunriseData);
+      updateWeatherDetails(weatherData.data.values, sunriseData, forecastData);
+      updateSevenDayForecast(forecastData, sunriseData);
+      updateHourlyForecast(forecastData, sunriseData);
+
+      return {
+        weather: weatherData,
+        sunriseSunset: sunriseData,
+        forecast: forecastData,
+      };
+    } else {
+      console.error(
+        "Failed to extract latitude and longitude from weather data."
+      );
+      return null;
+    }
+  } else {
+    console.error("Error fetching weather data:", weatherData.error);
+    return null;
+  }
+}
+
+function getWeatherCondition(weatherCode, time, sunrise, sunset) {
+  const isDay = time > sunrise && time < sunset;
+
+  if (isDay) {
+    if ((weatherCode >= 2 && weatherCode <= 19) || weatherCode === 45) {
+      return "Cloudy Sunny";
+    } else if (
+      (weatherCode >= 50 && weatherCode <= 69) ||
+      (weatherCode >= 80 && weatherCode <= 94)
+    ) {
+      return "Rainy";
+    } else if (weatherCode >= 70 && weatherCode <= 79) {
+      return "Snowy";
+    } else if (weatherCode >= 95 && weatherCode <= 99) {
+      return "Thunderstorm";
+    } else {
+      return "Sunny";
+    }
+  } else {
+    if ((weatherCode >= 2 && weatherCode <= 19) || weatherCode === 45) {
+      return "Cloudy Night";
+    } else if (
+      (weatherCode >= 50 && weatherCode <= 69) ||
+      (weatherCode >= 80 && weatherCode <= 94)
+    ) {
+      return "Rainy";
+    } else if (weatherCode >= 70 && weatherCode <= 79) {
+      return "Snowy";
+    } else if (weatherCode >= 95 && weatherCode <= 99) {
+      return "Thunderstorm";
+    } else {
+      return "Clear Sky";
+    }
+  }
+}
+
+function updateCurrentWeather(weatherData, query, forecastData, sunriseData) {
+  const values = weatherData.data.values;
+  const now = new Date();
+  const currentHour = now.getHours();
+  const sunrise = new Date(
+    `${now.toDateString()} ${sunriseData.results.sunrise}`
+  );
+  const sunset = new Date(
+    `${now.toDateString()} ${sunriseData.results.sunset}`
+  );
+
+  currentWeather = {
+    cityName: query,
+    dateTime: now.toLocaleString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+    }),
+    temperature: Math.round(forecastData.hourly.temperature_2m[currentHour]),
+    condition: getWeatherCondition(
+      forecastData.hourly.weather_code[currentHour],
+      now,
+      sunrise,
+      sunset
+    ),
+  };
+
+  renderCurrentWeather();
+}
+
+function updateWeatherDetails(values, sunriseData, forecastData) {
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentDate = now.toISOString().split("T")[0];
+
+  const currentHourIndex = forecastData.hourly.time.findIndex(
+    (time) =>
+      time === `${currentDate}T${currentHour.toString().padStart(2, "0")}:00`
+  );
+
+  weatherDetails = [
+    {
+      label: "Real Feel",
+      value: `${Math.round(
+        forecastData.hourly.temperature_2m[currentHourIndex]
+      )}°F`,
+    },
+    { label: "Wind Speed", value: `${values.windSpeed.toFixed(1)} mph` },
+    { label: "Cloud Cover", value: `${values.cloudCover}%` },
+    {
+      label: "Sunrise",
+      value: `${sunriseData.results.sunrise
+        .split(":")
+        .slice(0, 2)
+        .join(":")} AM`,
+    },
+    {
+      label: "Chance",
+      value: `${forecastData.hourly.precipitation_probability[currentHourIndex]}%`,
+    },
+    { label: "UV Index", value: values.uvIndex.toString() },
+    { label: "Humidity", value: `${values.humidity}%` },
+    {
+      label: "Sunset",
+      value: `${sunriseData.results.sunset
+        .split(":")
+        .slice(0, 2)
+        .join(":")} PM`,
+    },
+  ];
+  renderWeatherDetails();
+}
+
+function updateSevenDayForecast(forecastData, sunriseData) {
+  const days = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+  const today = new Date().getDay();
+  const sunrise = new Date(
+    `${new Date().toDateString()} ${sunriseData.results.sunrise}`
+  );
+  const sunset = new Date(
+    `${new Date().toDateString()} ${sunriseData.results.sunset}`
+  );
+
+  sevenDayForecast = forecastData.daily.time.map((date, index) => {
+    const dayIndex = (today + index) % 7;
+    const day = index === 0 ? "Today" : days[dayIndex];
+    const temp = `${Math.round(
+      forecastData.daily.temperature_2m_max[index]
+    )}/${Math.round(forecastData.daily.temperature_2m_min[index])}`;
+    const condition = getWeatherCondition(
+      forecastData.daily.weather_code[index],
+      new Date(date + "T12:00:00"),
+      sunrise,
+      sunset
+    );
+
+    return { day, condition, temp };
+  });
+
+  renderSevenDayForecast();
+}
+
+function updateHourlyForecast(forecastData, sunriseData) {
+  const now = new Date();
+  const currentHour = now.getHours();
+  const sunrise = new Date(
+    `${now.toDateString()} ${sunriseData.results.sunrise}`
+  );
+  const sunset = new Date(
+    `${now.toDateString()} ${sunriseData.results.sunset}`
+  );
+
+  hourlyForecast = forecastData.hourly.time
+    .slice(currentHour, currentHour + 6)
+    .map((time, index) => {
+      const hour = new Date(time);
+      const temp = Math.round(
+        forecastData.hourly.temperature_2m[currentHour + index]
+      );
+      const condition = getWeatherCondition(
+        forecastData.hourly.weather_code[currentHour + index],
+        hour,
+        sunrise,
+        sunset
+      );
+      return {
+        time: `${hour.getHours() % 12 || 12}:00 ${
+          hour.getHours() < 12 ? "AM" : "PM"
+        }`,
+        temp: `${temp}°F`,
+        condition: condition,
+      };
+    });
+
+  renderHourlyForecast();
+}
 
 function renderCurrentWeather() {
   const container = document.querySelector(".current-weather");
@@ -51,7 +259,9 @@ function renderHourlyForecast() {
         hour.condition
       }" class="icon">
           <div class="temp">${hour.temp}</div>
-          <div class="condition">${hour.condition}</div>
+          <div class="condition">${
+            hour.condition.includes("Cloudy") ? "Cloudy" : hour.condition
+          }</div>
         </div>
       `
     )
@@ -101,201 +311,26 @@ function renderSevenDayForecast() {
           <img src="image/${getWeatherIcon(day.condition)}" alt="${
         day.condition
       }" class="icon">
-          <div class="condition">${day.condition}</div>
+          <div class="condition">${
+            day.condition.includes("Cloudy") ? "Cloudy" : day.condition
+          }</div>
           <div class="temp">${day.temp}</div>
         </div>
       `
     )
     .join("");
 }
-
 function getWeatherIcon(condition) {
   const icons = {
     Sunny: "sun.svg",
-    Cloudy: "cloudy.svg",
-    "Partly Cloudy": "partly cloudy.svg",
+    "Cloudy Sunny": "cloudy-day.svg",
+    "Cloudy Night": "cloudy-night.svg",
     Rainy: "rain.svg",
+    Snowy: "snowy.svg",
     Thunderstorm: "thunderstorm.svg",
     "Clear Sky": "crescent.svg",
   };
   return icons[condition] || "default.svg";
-}
-
-async function fetchApiData(url) {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    return { error: `Fetch Error: ${error.message}` };
-  }
-}
-
-async function getWeatherData(query = "New York City") {
-  const config = await import("./config.js");
-  const weatherUrl = `https://api.tomorrow.io/v4/weather/realtime?location=${query}&apikey=${config.tomorrow_api_key}`;
-  const weatherData = await fetchApiData(weatherUrl);
-
-  if (!weatherData.error && weatherData.data) {
-    const latitude = weatherData.location.lat;
-    const longitude = weatherData.location.lon;
-
-    if (latitude && longitude) {
-      const sunriseUrl = `https://api.sunrisesunset.io/json?lat=${latitude}&lng=${longitude}`;
-      const sunriseData = await fetchApiData(sunriseUrl);
-
-      const weatherConditionUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${config.openweather_api_key}`;
-      const weatherConditionData = await fetchApiData(weatherConditionUrl);
-
-      const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,precipitation_probability&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&forecast_days=7`;
-      const forecastData = await fetchApiData(forecastUrl);
-
-      updateCurrentWeather(weatherData, query, forecastData);
-      updateWeatherDetails(
-        weatherData.data.values,
-        sunriseData,
-        weatherConditionData
-      );
-      updateSevenDayForecast(forecastData);
-      updateHourlyForecast(forecastData);
-
-      return {
-        weather: weatherData,
-        sunriseSunset: sunriseData,
-        currentWeather: weatherConditionData,
-        forecast: forecastData,
-      };
-    } else {
-      console.error(
-        "Failed to extract latitude and longitude from weather data."
-      );
-      return null;
-    }
-  } else {
-    console.error("Error fetching weather data:", weatherData.error);
-    return null;
-  }
-}
-
-function updateCurrentWeather(weatherData, query, forecastData) {
-  const values = weatherData.data.values;
-  const now = new Date();
-  const currentHour = now.getHours();
-
-  currentWeather = {
-    cityName: query,
-    dateTime: now.toLocaleString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-    }),
-    temperature: Math.round(forecastData.hourly.temperature_2m[currentHour]),
-    condition: "Clear Sky", // Default condition as per request
-  };
-
-  renderCurrentWeather();
-}
-
-function getWeatherCondition(weatherCode) {
-  const weatherConditions = {
-    1000: "Clear",
-    1100: "Mostly Clear",
-    1101: "Partly Cloudy",
-    1102: "Mostly Cloudy",
-    1001: "Cloudy",
-    4000: "Rainy",
-    4001: "Light Rain",
-    4200: "Light Rain",
-    4201: "Heavy Rain",
-    5000: "Snow",
-    5001: "Flurries",
-    5100: "Light Snow",
-    5101: "Heavy Snow",
-    8000: "Thunderstorm",
-  };
-  return weatherConditions[weatherCode] || "Unknown";
-}
-
-function updateWeatherDetails(values, sunriseData, weatherConditionData) {
-  weatherDetails = [
-    {
-      label: "Real Feel",
-      value: `${((values.temperatureApparent * 9) / 5 + 32).toFixed(1)}°F`,
-    },
-    { label: "Wind Speed", value: `${values.windSpeed.toFixed(1)} mph` },
-    { label: "Cloud Cover", value: `${values.cloudCover}%` },
-    {
-      label: "Sunrise",
-      value: `${sunriseData.results.sunrise
-        .split(":")
-        .slice(0, 2)
-        .join(":")} AM`,
-    },
-    { label: "Chance", value: `${values.precipitationProbability}%` },
-    { label: "UV Index", value: values.uvIndex.toString() },
-    { label: "Humidity", value: `${values.humidity}%` },
-    {
-      label: "Sunset",
-      value: `${sunriseData.results.sunset
-        .split(":")
-        .slice(0, 2)
-        .join(":")} PM`,
-    },
-  ];
-  renderWeatherDetails();
-}
-
-function updateSevenDayForecast(forecastData) {
-  const days = [
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-  ];
-  const today = new Date().getDay();
-
-  sevenDayForecast = forecastData.daily.time.map((date, index) => {
-    const dayIndex = (today + index) % 7;
-    const day = index === 0 ? "Today" : days[dayIndex];
-    const temp = `${Math.round(
-      forecastData.daily.temperature_2m_max[index]
-    )}/${Math.round(forecastData.daily.temperature_2m_min[index])}`;
-    const condition = "Clear Sky"; // Default condition as per request
-
-    return { day, condition, temp };
-  });
-
-  renderSevenDayForecast();
-}
-
-function updateHourlyForecast(forecastData) {
-  const now = new Date();
-  const currentHour = now.getHours();
-
-  hourlyForecast = forecastData.hourly.time
-    .slice(currentHour, currentHour + 6)
-    .map((time, index) => {
-      const hour = new Date(time).getHours();
-      const temp = Math.round(
-        forecastData.hourly.temperature_2m[currentHour + index]
-      );
-      return {
-        time: `${hour % 12 || 12}:00 ${hour < 12 ? "AM" : "PM"}`,
-        temp: `${temp}°F`,
-        condition: "Clear Sky", // Default condition as per request
-      };
-    });
-
-  renderHourlyForecast();
 }
 
 async function handleSearch() {
@@ -306,7 +341,7 @@ async function handleSearch() {
     if (weatherData) {
       console.log(weatherData);
     }
-    searchInput.value = ""; // Clear the search input after performing the search
+    searchInput.value = "";
   }
 }
 
@@ -314,7 +349,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const searchInput = document.querySelector(".search-input");
   const searchButton = document.querySelector(".search-button");
 
-  // Fetch weather data for New York City by default
   await getWeatherData();
 
   searchButton.addEventListener("click", handleSearch);
