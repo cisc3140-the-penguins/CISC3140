@@ -241,10 +241,20 @@ function updateHourlyForecast(forecastData, sunriseData) {
 function renderCurrentWeather() {
   const container = document.querySelector(".current-weather");
   container.innerHTML = `
+  <div class="current-info">
     <h1 class="city-name">${currentWeather.cityName}</h1>
     <div class="date-time">${currentWeather.dateTime}</div>
-    <div class="temperature">${currentWeather.temperature}<span class="temp-unit">°F</span></div>
-    <div class="condition">${currentWeather.condition}</div>
+    <div class="temperature">
+      <span class="temp-value">${currentWeather.temperature}</span>
+      <div class="temperature-values">
+        <span class="temp-unit">°F</span>
+        <span class="condition">${currentWeather.condition}</span>
+      </div>
+    </div>
+  </div>
+  <img src="image/${getWeatherIcon(currentWeather.condition)}" alt="${
+    currentWeather.condition
+  }" class="current-icon">
   `;
 }
 
