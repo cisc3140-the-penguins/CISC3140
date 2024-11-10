@@ -56,8 +56,8 @@ function renderWeatherDetails() {
         detail.label
       }" class="icon">
                       <div>
-                        <div class="detail-label">${detail.label}</div>
                         <div class="detail-value">${detail.value}</div>
+						<div class="detail-label">${detail.label}</div>
                       </div>
                     </div>
                 `
@@ -86,10 +86,12 @@ function renderSevenDayForecast() {
       (day) => `
                     <div class="day-item">
                         <div class="day">${day.day}</div>
+						<div class="condition-item">
                         <img src="image/${getWeatherIcon(
                           day.condition
                         )}" alt="${day.condition}" class="icon">
                         <div class="condition">${day.condition}</div>
+						</div>
                         <div class="temp">${day.temp}</div>
                     </div>
                 `
@@ -114,3 +116,4 @@ document.addEventListener("DOMContentLoaded", () => {
   renderWeatherDetails();
   renderSevenDayForecast();
 });
+
