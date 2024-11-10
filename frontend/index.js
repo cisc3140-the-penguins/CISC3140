@@ -1,6 +1,33 @@
-let hourlyForecast = [];
-let weatherDetails = [];
-let sevenDayForecast = [];
+let hourlyForecast = [
+  { time: "10:00 PM", temp: "67°F", condition: "Clear Sky" },
+  { time: "12:00 AM", temp: "66°F", condition: "Clear Sky" },
+  { time: "2:00 AM", temp: "65°F", condition: "Clear Sky" },
+  { time: "4:00 AM", temp: "65°F", condition: "Clear Sky" },
+  { time: "6:00 AM", temp: "66°F", condition: "Clear Sky" },
+  { time: "8:00 AM", temp: "67°F", condition: "Sunny" },
+];
+
+let weatherDetails = [
+  { label: "Real Feel", value: "71°" },
+  { label: "Wind Speed", value: "6 mph" },
+  { label: "Cloud Cover", value: "44%" },
+  { label: "Sunrise", value: "7:27 am" },
+  { label: "Chance", value: "0%" },
+  { label: "UV Index", value: "0" },
+  { label: "Humidity", value: "69%" },
+  { label: "Sunset", value: "5:51 pm" },
+];
+
+let sevenDayForecast = [
+  { day: "Today", condition: "Sunny", temp: "74/63" },
+  { day: "Friday", condition: "Sunny", temp: "71/69" },
+  { day: "Saturday", condition: "Sunny", temp: "68/60" },
+  { day: "Sunday", condition: "Cloudy", temp: "64/60" },
+  { day: "Monday", condition: "Cloudy", temp: "66/63" },
+  { day: "Tuesday", condition: "Rainy", temp: "61/58" },
+  { day: "Wednesday", condition: "Thunderstorm", temp: "55/52" },
+];
+
 let currentWeather = {};
 
 function renderCurrentWeather() {
@@ -106,30 +133,52 @@ async function fetchApiData(url) {
     return { error: `Fetch Error: ${error.message}` };
   }
 }
-// query = "New York City"
-async function getWeatherData() {
+
+async function getWeatherData(query = "New York City") {
   const config = await import("./config.js");
   const weatherUrl = `https://api.tomorrow.io/v4/weather/realtime?location=${query}&apikey=${config.tomorrow_api_key}`;
   const weatherData = await fetchApiData(weatherUrl);
 
   if (!weatherData.error && weatherData.data) {
-    updateCurrentWeather(weatherData);
-    updateWeatherDetails(weatherData.data.values);
-    // You would typically update hourlyForecast and sevenDayForecast here as well
-    // but the current API response doesn't include this data
-    return weatherData;
+    const latitude = weatherData.location.lat;
+    const longitude = weatherData.location.lon;
+
+    if (latitude && longitude) {
+      const sunriseUrl = `https://api.sunrisesunset.io/json?lat=${latitude}&lng=${longitude}`;
+      const sunriseData = await fetchApiData(sunriseUrl);
+
+      const weatherConditionUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${config.openweather_api_key}`;
+      const weatherConditionData = await fetchApiData(weatherConditionUrl);
+
+      updateCurrentWeather(weatherData, query);
+      updateWeatherDetails(
+        weatherData.data.values,
+        sunriseData,
+        weatherConditionData
+      );
+
+      return {
+        weather: weatherData,
+        sunriseSunset: sunriseData,
+        currentWeather: weatherConditionData,
+      };
+    } else {
+      console.error(
+        "Failed to extract latitude and longitude from weather data."
+      );
+      return null;
+    }
   } else {
     console.error("Error fetching weather data:", weatherData.error);
     return null;
   }
 }
 
-function updateCurrentWeather(weatherData) {
+function updateCurrentWeather(weatherData, query) {
   const values = weatherData.data.values;
-  const location = weatherData.location;
 
   currentWeather = {
-    cityName: location.name,
+    cityName: query,
     dateTime: new Date().toLocaleString("en-US", {
       weekday: "long",
       year: "numeric",
@@ -138,7 +187,7 @@ function updateCurrentWeather(weatherData) {
       hour: "numeric",
       minute: "numeric",
     }),
-    temperature: Math.round(values.temperature),
+    temperature: Math.round((values.temperature * 9) / 5 + 32),
     condition: getWeatherCondition(values.weatherCode),
   };
 
@@ -165,16 +214,31 @@ function getWeatherCondition(weatherCode) {
   return weatherConditions[weatherCode] || "Unknown";
 }
 
-function updateWeatherDetails(values) {
+function updateWeatherDetails(values, sunriseData, weatherConditionData) {
   weatherDetails = [
-    { label: "Real Feel", value: `${values.temperatureApparent.toFixed(1)}°` },
+    {
+      label: "Real Feel",
+      value: `${((values.temperatureApparent * 9) / 5 + 32).toFixed(1)}°F`,
+    },
     { label: "Wind Speed", value: `${values.windSpeed.toFixed(1)} mph` },
     { label: "Cloud Cover", value: `${values.cloudCover}%` },
-    { label: "Sunrise", value: "Placeholder" },
+    {
+      label: "Sunrise",
+      value: `${sunriseData.results.sunrise
+        .split(":")
+        .slice(0, 2)
+        .join(":")} AM`,
+    },
     { label: "Chance", value: `${values.precipitationProbability}%` },
     { label: "UV Index", value: values.uvIndex.toString() },
     { label: "Humidity", value: `${values.humidity}%` },
-    { label: "Sunset", value: "Placeholder" },
+    {
+      label: "Sunset",
+      value: `${sunriseData.results.sunset
+        .split(":")
+        .slice(0, 2)
+        .join(":")} PM`,
+    },
   ];
   renderWeatherDetails();
 }
