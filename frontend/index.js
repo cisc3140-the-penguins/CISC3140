@@ -150,17 +150,23 @@ async function getWeatherData(query = "New York City") {
       const weatherConditionUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${config.openweather_api_key}`;
       const weatherConditionData = await fetchApiData(weatherConditionUrl);
 
-      updateCurrentWeather(weatherData, query);
+      const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=temperature_2m,precipitation_probability&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&forecast_days=7`;
+      const forecastData = await fetchApiData(forecastUrl);
+
+      updateCurrentWeather(weatherData, query, forecastData);
       updateWeatherDetails(
         weatherData.data.values,
         sunriseData,
         weatherConditionData
       );
+      updateSevenDayForecast(forecastData);
+      updateHourlyForecast(forecastData);
 
       return {
         weather: weatherData,
         sunriseSunset: sunriseData,
         currentWeather: weatherConditionData,
+        forecast: forecastData,
       };
     } else {
       console.error(
@@ -174,12 +180,14 @@ async function getWeatherData(query = "New York City") {
   }
 }
 
-function updateCurrentWeather(weatherData, query) {
+function updateCurrentWeather(weatherData, query, forecastData) {
   const values = weatherData.data.values;
+  const now = new Date();
+  const currentHour = now.getHours();
 
   currentWeather = {
     cityName: query,
-    dateTime: new Date().toLocaleString("en-US", {
+    dateTime: now.toLocaleString("en-US", {
       weekday: "long",
       year: "numeric",
       month: "long",
@@ -187,8 +195,8 @@ function updateCurrentWeather(weatherData, query) {
       hour: "numeric",
       minute: "numeric",
     }),
-    temperature: Math.round((values.temperature * 9) / 5 + 32),
-    condition: getWeatherCondition(values.weatherCode),
+    temperature: Math.round(forecastData.hourly.temperature_2m[currentHour]),
+    condition: "Clear Sky", // Default condition as per request
   };
 
   renderCurrentWeather();
@@ -243,6 +251,53 @@ function updateWeatherDetails(values, sunriseData, weatherConditionData) {
   renderWeatherDetails();
 }
 
+function updateSevenDayForecast(forecastData) {
+  const days = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+  const today = new Date().getDay();
+
+  sevenDayForecast = forecastData.daily.time.map((date, index) => {
+    const dayIndex = (today + index) % 7;
+    const day = index === 0 ? "Today" : days[dayIndex];
+    const temp = `${Math.round(
+      forecastData.daily.temperature_2m_max[index]
+    )}/${Math.round(forecastData.daily.temperature_2m_min[index])}`;
+    const condition = "Clear Sky"; // Default condition as per request
+
+    return { day, condition, temp };
+  });
+
+  renderSevenDayForecast();
+}
+
+function updateHourlyForecast(forecastData) {
+  const now = new Date();
+  const currentHour = now.getHours();
+
+  hourlyForecast = forecastData.hourly.time
+    .slice(currentHour, currentHour + 6)
+    .map((time, index) => {
+      const hour = new Date(time).getHours();
+      const temp = Math.round(
+        forecastData.hourly.temperature_2m[currentHour + index]
+      );
+      return {
+        time: `${hour % 12 || 12}:00 ${hour < 12 ? "AM" : "PM"}`,
+        temp: `${temp}°F`,
+        condition: "Clear Sky", // Default condition as per request
+      };
+    });
+
+  renderHourlyForecast();
+}
+
 async function handleSearch() {
   const searchInput = document.querySelector(".search-input");
   const query = searchInput.value.trim();
@@ -261,9 +316,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Fetch weather data for New York City by default
   await getWeatherData();
-
-  renderHourlyForecast();
-  renderSevenDayForecast();
 
   searchButton.addEventListener("click", handleSearch);
   searchInput.addEventListener("keypress", (event) => {
